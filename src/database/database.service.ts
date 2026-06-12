@@ -41,32 +41,49 @@ export class DatabaseService implements OnModuleInit {
     fs.writeFileSync(this.dbPath, Buffer.from(data));
   }
 
+  private escapeSql(sql: string, params: any[]): string {
+    let i = 0;
+    return sql.replace(/\?/g, () => {
+      const val = params[i++];
+      if (val === null || val === undefined) return 'NULL';
+      if (typeof val === 'number') return String(val);
+      if (typeof val === 'boolean') return val ? '1' : '0';
+      return `'${String(val).replace(/'/g, "''")}'`;
+    });
+  }
+
   run(sql: string, params: any[] = []): void {
-    this.db.run(sql, params);
+    const escaped = this.escapeSql(sql, params);
+    this.db.run(escaped);
     this.save();
   }
 
   get<T = any>(sql: string, params: any[] = []): T | undefined {
-    const stmt = this.db.prepare(sql);
-    stmt.bind(params);
-    if (stmt.step()) {
-      const row = stmt.getAsObject({});
-      stmt.free();
-      return row as T;
+    const escaped = this.escapeSql(sql, params);
+    const results = this.db.exec(escaped);
+    if (!results || results.length === 0 || results[0].values.length === 0) {
+      return undefined;
     }
-    stmt.free();
-    return undefined;
+    const { columns, values } = results[0];
+    const row: any = {};
+    columns.forEach((col, idx) => {
+      row[col] = values[0][idx];
+    });
+    return row as T;
   }
 
   all<T = any>(sql: string, params: any[] = []): T[] {
-    const stmt = this.db.prepare(sql);
-    stmt.bind(params);
-    const rows: T[] = [];
-    while (stmt.step()) {
-      rows.push(stmt.getAsObject({}) as T);
-    }
-    stmt.free();
-    return rows;
+    const escaped = this.escapeSql(sql, params);
+    const results = this.db.exec(escaped);
+    if (!results || results.length === 0) return [];
+    const { columns, values } = results[0];
+    return values.map((row) => {
+      const obj: any = {};
+      columns.forEach((col, idx) => {
+        obj[col] = row[idx];
+      });
+      return obj as T;
+    });
   }
 
   exec(sql: string): void {
@@ -115,9 +132,7 @@ export class DatabaseService implements OnModuleInit {
       );
     `);
 
-    this.exec(`
-      CREATE INDEX IF NOT EXISTS idx_accounts_user_id ON accounts(user_id);
-    `);
+    this.exec(`CREATE INDEX IF NOT EXISTS idx_accounts_user_id ON accounts(user_id);`);
 
     this.exec(`
       CREATE TABLE IF NOT EXISTS categories (
@@ -134,9 +149,7 @@ export class DatabaseService implements OnModuleInit {
       );
     `);
 
-    this.exec(`
-      CREATE INDEX IF NOT EXISTS idx_categories_user_id ON categories(user_id);
-    `);
+    this.exec(`CREATE INDEX IF NOT EXISTS idx_categories_user_id ON categories(user_id);`);
 
     this.exec(`
       CREATE TABLE IF NOT EXISTS transactions (
@@ -204,9 +217,7 @@ export class DatabaseService implements OnModuleInit {
       );
     `);
 
-    this.exec(`
-      CREATE INDEX IF NOT EXISTS idx_budgets_user_year_month ON budgets(user_id, year, month);
-    `);
+    this.exec(`CREATE INDEX IF NOT EXISTS idx_budgets_user_year_month ON budgets(user_id, year, month);`);
 
     this.exec(`
       CREATE TABLE IF NOT EXISTS goals (
@@ -224,9 +235,7 @@ export class DatabaseService implements OnModuleInit {
       );
     `);
 
-    this.exec(`
-      CREATE INDEX IF NOT EXISTS idx_goals_user_status ON goals(user_id, status);
-    `);
+    this.exec(`CREATE INDEX IF NOT EXISTS idx_goals_user_status ON goals(user_id, status);`);
 
     this.exec(`
       CREATE TABLE IF NOT EXISTS goal_contributions (

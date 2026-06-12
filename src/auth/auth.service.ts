@@ -55,14 +55,12 @@ export class AuthService {
       [userId, dto.email, passwordHash, dto.firstName, now, now],
     );
 
-    // Create default settings
     this.db.run(
       `INSERT INTO user_settings (id, user_id, currency_display, timezone, created_at, updated_at)
        VALUES (?, ?, 'TOMAN', 'Asia/Tehran', ?, ?)`,
       [uuidv4(), userId, now, now],
     );
 
-    // Create default categories
     for (const cat of DEFAULT_EXPENSE_CATEGORIES) {
       this.db.run(
         `INSERT INTO categories (id, user_id, name, type, icon, is_default, is_active, created_at, updated_at)
@@ -91,20 +89,21 @@ export class AuthService {
   }
 
   async login(dto: LoginDto) {
-    const user = this.db.get<{
-      id: string;
-      email: string;
-      password_hash: string;
-      first_name: string;
-    }>(`SELECT id, email, password_hash, first_name FROM users WHERE email = ?`, [
-      dto.email,
-    ]);
+    const user = this.db.get<any>(
+      `SELECT id, email, password_hash, first_name FROM users WHERE email = ?`,
+      [dto.email],
+    );
 
     if (!user) {
       throw new UnauthorizedException('ایمیل یا رمز عبور اشتباه است.');
     }
 
-    const valid = await bcrypt.compare(dto.password, user.password_hash);
+    const hash = user['password_hash'];
+    if (!hash) {
+      throw new UnauthorizedException('ایمیل یا رمز عبور اشتباه است.');
+    }
+
+    const valid = await bcrypt.compare(dto.password, hash);
     if (!valid) {
       throw new UnauthorizedException('ایمیل یا رمز عبور اشتباه است.');
     }
@@ -116,18 +115,13 @@ export class AuthService {
       user: {
         id: user.id,
         email: user.email,
-        firstName: user.first_name,
+        firstName: user['first_name'],
       },
     };
   }
 
   getMe(userId: string) {
-    const user = this.db.get<{
-      id: string;
-      email: string;
-      first_name: string;
-      created_at: string;
-    }>(
+    const user = this.db.get<any>(
       `SELECT id, email, first_name, created_at FROM users WHERE id = ?`,
       [userId],
     );
@@ -135,8 +129,8 @@ export class AuthService {
     return {
       id: user.id,
       email: user.email,
-      firstName: user.first_name,
-      createdAt: user.created_at,
+      firstName: user['first_name'],
+      createdAt: user['created_at'],
     };
   }
 }

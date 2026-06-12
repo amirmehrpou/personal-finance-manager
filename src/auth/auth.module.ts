@@ -5,11 +5,13 @@ import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './jwt.strategy';
 
+const JWT_SECRET = 'pf-secret-2026';
+
 @Module({
   imports: [
-    PassportModule,
+    PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.register({
-      secret: process.env.JWT_SECRET || 'fallback-secret-change-in-production',
+      secret: JWT_SECRET,
       signOptions: { expiresIn: '7d' },
     }),
   ],
